@@ -1,0 +1,16 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+  EventsRule1:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Name: "sample-datasync-error-rule"
+      EventPattern: |
+        {
+          "source": ["aws.datasync"],
+          "detail-type": ["DataSync Task Execution State Change"],
+          "detail": {
+            "State": ["ERROR"]
+          }
+        }
+      EventBusName: "default"
