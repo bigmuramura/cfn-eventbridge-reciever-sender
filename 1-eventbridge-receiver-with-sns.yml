@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ProjectName:
+    Description: Project Name
+    Type: String
+    Default: unnamed
+  Environment:
+    Description: Environment
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - dev
+      - stg
+
+Resources:
+  # ------------------------------------------------------------#
+  # EventBridge
+  # ------------------------------------------------------------#
+  # Custom Event Bus
+  EventsEventBus1:
+    Type: "AWS::Events::EventBus"
+    Properties:
+      Name: !Sub ${ProjectName}-${Environment}-eventbus-receiver
+
+  # Event Rule
+  EventsRule1:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Name: !Sub ${ProjectName}-${Environment}-receive-rule
+      EventBusName: !Ref EventsEventBus1
+      Targets:
+        - Arn: !Ref SNSTopic1
+          Id: "NotificationDestinationTopic"
+      EventPattern: |
+        {
+          "source": ["aws.ec2"],
+          "detail-type": ["EC2 Instance State-change Notification"],
+          "detail": {
+            "state": ["running", "stopped"]
+          }
+        }
+
+  # ------------------------------------------------------------#
+  # SNS
+  # ------------------------------------------------------------#
+  SNSTopic1:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      DisplayName: !Sub ${ProjectName}-${Environment}-receiver-topic
+      TopicName: !Sub ${ProjectName}-${Environment}-receiver-topic
+  SNSTopicPolicy1:
+    Type: "AWS::SNS::TopicPolicy"
+    Properties:
+      Topics:
+        - !Ref SNSTopic1
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "EventBridgeRule"
+            Effect: "Allow"
+            Principal:
+              Service: "events.amazonaws.com"
+            Action: "sns:Publish"
+            Resource: !Ref SNSTopic1
+
+  # ------------------------------------------------------------#
+  # Sender for IAM Role
+  # ------------------------------------------------------------#
+  IAMRole1:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/service-role/"
+      RoleName: !Sub ${ProjectName}-${Environment}-eventbridge-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "events.amazonaws.com"
+            Action: "sts:AssumeRole"
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - !Ref IAMManagedPolicy1
+  IAMManagedPolicy1:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: !Sub ${ProjectName}-${Environment}-eventbridge-policy
+      Path: "/service-role/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "events:PutEvents"
+            Resource:
+              - !GetAtt EventsEventBus1.Arn
+
+Outputs:
+  ReceiverCustomEventBusARNOutput:
+    Description: "This value is used in the stack set  parameters."
+    Value: !GetAtt EventsEventBus1.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-ReceiverCustomEventBusARN
+  SenderRoleARNOutput:
+    Description: "This value is used in the stack set  parameters."
+    Value: !GetAtt IAMRole1.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SenderRoleARN
