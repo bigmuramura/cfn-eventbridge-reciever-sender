@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ProjectName:
+    Description: Project Name
+    Type: String
+    Default: unnamed
+  Environment:
+    Description: Environment
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - dev
+      - stg
+  ReceiverCustomEventBusARN:
+    Description: "Enter the value of the output of the receiver stack"
+    Type: String
+    Default: arn:aws:events:ap-northeast-1:123456789012:event-bus/hoge-fuga-eventbus-receiver
+  SenderRoleARN:
+    Description: "Enter the value of the output of the receiver stack"
+    Type: String
+    Default: arn:aws:iam::123456789012:role/service-role/hoge-fuga-eventbridge-role
+
+Resources:
+  # ------------------------------------------------------------#
+  # EventBridge
+  # ------------------------------------------------------------#
+  # Event Rule
+  EventsRule1:
+    Type: "AWS::Events::Rule"
+    Properties:
+      Name: !Sub ${ProjectName}-${Environment}-sender-rule
+      EventBusName: "default"
+      Targets:
+        - Arn: !Ref ReceiverCustomEventBusARN
+          Id: "EventBridgeSender"
+          RoleArn: !Ref SenderRoleARN
+      EventPattern: |
+        {
+          "source": ["aws.ec2"],
+          "detail-type": ["EC2 Instance State-change Notification"]
+        }
